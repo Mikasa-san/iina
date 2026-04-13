@@ -128,6 +128,7 @@ export DYLIBS_DOWNLOAD_PATH
 export LIB_PATH
 export YELLOW
 export GREEN
+export RED
 export NC
 
 # Process files in smaller batches using xargs
