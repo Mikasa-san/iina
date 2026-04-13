@@ -543,7 +543,7 @@ for (const name of radioNames.values()) {
 
 
 /// The CSS for About/Preference view.
-/// The Help view can be a cusotm webpage so we don't want to apply additional CSS.
+/// The Help view can be a custom webpage so we don't want to apply additional CSS.
 fileprivate let WebViewCSS = """
 * {
   box-sizing: border-box;
