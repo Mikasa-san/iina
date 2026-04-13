@@ -3,13 +3,12 @@
 PROJECT_NAME='iina'
 
 # universal | arm64 | x86_64
-ARCH="universal"
+ARCH="arm64"
 # github | iina (use iina to get the binary included in the latest release)
-YT_DLP_SOURCE="github"
 PARALLEL_DOWNLOADS=5
 
 DYLIBS_DOWNLOAD_PATH="https://iina.io/dylibs/${ARCH}"
-YT_DLP_DOWNLOAD_PATH="https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
+YT_DLP_DOWNLOAD_PATH="https://github.com/Mikasa-san/yt-dlp/raw/refs/heads/master/yt-dlp_macos_arm64"
 
 # Colors for output
 RED='\033[0;31m'
@@ -19,7 +18,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Reset in case getopts has been used previously in the shell.
-if ! OPTS=$(getopt -o "h": --long "arch:,yt-dlp-src:,parallel:,help": -n 'parse-options' -- "$@"); then
+if ! OPTS=$(getopt -o "h": --long "arch:,parallel:,help": -n 'parse-options' -- "$@"); then
   echo -e "${RED}Failed parsing options.${NC}" >&2
   exit 1
 fi
@@ -29,7 +28,6 @@ printUsageHelp() {
   echo -e "${BLUE}Usage:${NC}"
   echo -e "    ${GREEN}$0 [-h|--help]:${NC}           Displays this help message"
   echo -e "    ${GREEN}$0 [--arch] <ARCH>:${NC}       Architecture to download dylibs for: universal | arm64 | x86_64"
-  echo -e "    ${GREEN}$0 [--yt-dlp-src] <SRC>:${NC}  Source to download youtube-dl from: github | iina"
   echo -e "    ${GREEN}$0 [--parallel] <N>:${NC}      Number of parallel downloads (default: 5)"
   echo
 }
@@ -62,15 +60,6 @@ while true; do
     ARCH=$2
     shift 2
     ;;
-  --yt-dlp-src)
-    if [[ -z "$2" ]]; then
-      echo -e "${RED}You need to specify a source when using --yt-dlp-src${NC}"
-      printUsageHelp
-      exit 1
-    fi
-    YT_DLP_SOURCE=$2
-    shift 2
-    ;;
   --parallel)
     if [[ -z "$2" ]]; then
       echo -e "${RED}You need to specify a number of parallel downloads when using --parallel${NC}"
@@ -87,20 +76,6 @@ while true; do
   *) break ;;
   esac
 done
-
-case $YT_DLP_SOURCE in
-github)
-  YT_DLP_DOWNLOAD_PATH="https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
-  ;;
-iina)
-  YT_DLP_DOWNLOAD_PATH="https://iina.io/dylibs/youtube-dl"
-  ;;
-*)
-  echo -e "${RED}Invalid youtube-dl source: $YT_DLP_SOURCE${NC}"
-  printUsageHelp
-  exit 1
-  ;;
-esac
 
 case $ARCH in
 universal | arm64 | x86_64)
@@ -132,7 +107,7 @@ EXEC_PATH="$DEPS_PATH/executable"
 PLUGIN_PATH="$DEPS_PATH/plugins"
 YT_DLP_PATH="$EXEC_PATH/youtube-dl"
 
-IFS=$'\n' read -r -d '' -a files < <(curl -s "${DYLIBS_DOWNLOAD_PATH}/filelist.txt" && printf '\0')
+IFS=$'\n' read -r -d '' -a files < <(curl -fsSL "${DYLIBS_DOWNLOAD_PATH}/filelist.txt" && printf '\0')
 
 mkdir -p "$LIB_PATH"
 
@@ -142,7 +117,9 @@ echo -e "${BLUE}Starting downloads in parallel...${NC}"
 download_file() {
   local file="$1"
   echo -e "${YELLOW}Downloading ${file}...${NC}"
-  curl -s "${DYLIBS_DOWNLOAD_PATH}/${file}" -o "${LIB_PATH}/${file}" && echo -e "${GREEN}Downloaded ${file}${NC}"
+  curl -fsSL "${DYLIBS_DOWNLOAD_PATH}/${file}" -o "${LIB_PATH}/${file}" \
+    && echo -e "${GREEN}Downloaded ${file}${NC}" \
+    || echo -e "${RED}Failed to download ${file}${NC}"
 }
 
 # Export the function so it can be used by xargs
@@ -158,8 +135,6 @@ printf "%s\n" "${files[@]}" | xargs -n 1 -P "$PARALLEL_DOWNLOADS" bash -c 'downl
 
 mkdir -p "$EXEC_PATH"
 echo -e "${YELLOW}Downloading yt-dlp...${NC}"
-curl -s -L "$YT_DLP_DOWNLOAD_PATH" -o "$YT_DLP_PATH" && echo -e "${GREEN}yt-dlp downloaded${NC}"
-chmod +x "$YT_DLP_PATH"
 
 mkdir -p "$PLUGIN_PATH"
 
@@ -263,5 +238,13 @@ download_plugin() {
 download_plugin "iina/plugin-online-media" "iina-plugin-ytdl" || exit 1
 download_plugin "iina/plugin-userscript" "iina-plugin-userscript" || exit 1
 download_plugin "iina/plugin-opensub" "iina-plugin-opensub" || exit 1
+
+if curl -fL "$YT_DLP_DOWNLOAD_PATH" -o "$YT_DLP_PATH"; then
+  chmod +x "$YT_DLP_PATH"
+  echo -e "${GREEN}yt-dlp downloaded successfully (saved as youtube-dl)${NC}"
+else
+  echo -e "${RED}Failed to download yt-dlp${NC}"
+  exit 1
+fi
 
 echo -e "${GREEN}All downloads completed.${NC}"
