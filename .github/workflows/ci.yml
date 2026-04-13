@@ -21,16 +21,26 @@ jobs:
         run: ./other/download_libs.sh
 
       - name: Build
-        run: xcodebuild -project iina.xcodeproj ONLY_ACTIVE_ARCH=NO -scheme iina -configuration Nightly ${{ matrix.deployment_target }}
+        run: xcodebuild -project iina.xcodeproj -scheme iina -configuration Release ARCHS=arm64 ONLY_ACTIVE_ARCH=NO ${{ matrix.deployment_target }}
         env:
           DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
 
-      - name: Archive
-        run: tar cvJf ~/iina.tar.xz -C /Users/runner/Library/Developer/Xcode/DerivedData/iina-csbkugdtxazzqogjnydbothqrvib/Build/Products/Nightly IINA.app 
+      - name: Create DMG
+        run: |
+          APP_PATH="/Users/runner/Library/Developer/Xcode/DerivedData/iina-csbkugdtxazzqogjnydbothqrvib/Build/Products/Release/IINA.app"
+          mkdir dmg
+          cp -R "$APP_PATH" dmg/
 
-      - name: Save artifacts
+          hdiutil create \
+            -volname "IINA" \
+            -srcfolder dmg \
+            -ov \
+            -format UDZO \
+            IINA.dmg
+            
+      - name: Upload DMG Artifact
         uses: actions/upload-artifact@v6
         with:
-          name: IINA
-          path: ~/iina.tar.xz
+          name: IINA-dmg
+          path: IINA.dmg
 
