@@ -1,10 +1,16 @@
 name: CI
 
 on:
-  push:
-      branches: [develop]
-  pull_request:
-      branches: [develop]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: "Choose build type"
+        required: true
+        default: "Release"
+        type: choice
+        options:
+          - Release
+          - Nightly
 
 jobs:
   build:
@@ -13,7 +19,11 @@ jobs:
         include:
           - xcode: "26.0"
             deployment_target: ""
-    runs-on:  macos-26
+    runs-on: macos-26
+
+    env:
+      BUILD_TYPE: ${{ github.event_name == 'workflow_dispatch' && inputs.build_type || 'Release' }}
+
     steps:
       - uses: actions/checkout@v6
 
@@ -23,15 +33,32 @@ jobs:
           DOWNLOAD_LIBS_ARGS: ${{ github.event_name == 'pull_request' && '--skip-plugins' || '' }}
 
       - name: Build
-        run: xcodebuild -project iina.xcodeproj ONLY_ACTIVE_ARCH=NO -scheme iina -configuration Nightly ${{ matrix.deployment_target }}
+        run: |
+          xcodebuild \
+            -project iina.xcodeproj \
+            -scheme iina \
+            -configuration "$BUILD_TYPE" \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
+            ${{ matrix.deployment_target }}
         env:
           DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
 
-      - name: Archive
-        run: tar cvJf ~/iina.tar.xz -C /Users/runner/Library/Developer/Xcode/DerivedData/iina-csbkugdtxazzqogjnydbothqrvib/Build/Products/Nightly IINA.app 
+      - name: Create DMG
+        run: |
+          APP_PATH="/Users/runner/Library/Developer/Xcode/DerivedData/iina-csbkugdtxazzqogjnydbothqrvib/Build/Products/$BUILD_TYPE/IINA.app"
+          mkdir -p dmg
+          cp -R "$APP_PATH" dmg/
 
-      - name: Save artifacts
+          hdiutil create \
+            -volname "IINA" \
+            -srcfolder dmg \
+            -ov \
+            -format UDZO \
+            "IINA-${BUILD_TYPE}.dmg"
+
+      - name: Upload DMG Artifact
         uses: actions/upload-artifact@v6
         with:
-          name: IINA
-          path: ~/iina.tar.xz
+          name: IINA-${{ env.BUILD_TYPE }}.dmg
+          path: IINA-${{ env.BUILD_TYPE }}.dmg
