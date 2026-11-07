@@ -4,10 +4,16 @@ permissions:
   contents: read
 
 on:
-  push:
-      branches: [develop]
-  pull_request:
-      branches: [develop]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: "Choose build type"
+        required: true
+        default: "Release"
+        type: choice
+        options:
+          - Release
+          - Nightly
 
 jobs:
   build:
@@ -17,6 +23,10 @@ jobs:
           - xcode: "27"
             deployment_target: ""
     runs-on:  xcode-27
+
+    env:
+      BUILD_TYPE: ${{ github.event_name == 'workflow_dispatch' && inputs.build_type || 'Release' }}
+      
     steps:
       - uses: actions/checkout@v7
 
@@ -27,12 +37,19 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build
-        run: xcodebuild -project iina.xcodeproj ONLY_ACTIVE_ARCH=NO -scheme iina -derivedDataPath . -configuration Nightly ${{ matrix.deployment_target }}
+        run: |
+          xcodebuild \
+            -project iina.xcodeproj \
+            -scheme iina \
+            -configuration "$BUILD_TYPE" \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
+            ${{ matrix.deployment_target }}
         env:
           DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
 
       - name: Create DMG
-        run: hdiutil create -volname "IINA Nightly" -srcfolder Build/Products/Nightly/IINA.app -ov -format UDZO IINA.dmg
+        run: hdiutil create -volname "IINA $BUILD_TYPE" -srcfolder Build/Products/$BUILD_TYPE/IINA.app -ov -format UDZO IINA.dmg
 
       - name: Save artifacts
         uses: actions/upload-artifact@v7
